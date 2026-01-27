@@ -51,35 +51,4 @@ async def handle_tiktok(message: types.Message):
         await message.answer("⚠️ Для завантаження відео підпишись на наш канал!", reply_markup=markup)
         return
 
-    status_msg = await message.answer("⏳ Обробка відео...")
-    clean_url = message.text.split("?")[0]
-    
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"https://www.tikwm.com/api/?url={clean_url}") as resp:
-            res = await resp.json()
-            
-            if res.get('code') == 0:
-                video_url = res['data']['play']
-                
-                # Кнопка для поширення бота (саморозвиток)
-                share_kb = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🚀 Поділитися ботом", url=f"https://t.me/share/url?url={BOT_URL}")]
-                ])
-
-                await bot.send_video(
-                    chat_id=message.chat.id,
-                    video=video_url,
-                    caption=f"✅ Готово! Підписуйся на тренди: {CHANNEL_ID}",
-                    reply_markup=share_kb
-                )
-                await status_msg.delete()
-            else:
-                await status_msg.edit_text("❌ Помилка. Спробуй інше посилання.")
-
-async def main():
-    print("Бот запущений та готовий до роботи!")
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
+    status_msg = await message.answer("⏳ Обробка відео..
