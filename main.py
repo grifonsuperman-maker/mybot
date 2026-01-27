@@ -62,7 +62,7 @@ def run_dummy_server():
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # --- КОНФИГУРАЦИЯ ---
-API_TOKEN = os.getenv('BOT_TOKEN', '8445491297:AAFmePw4OSKHLWDSIm86pgWdYjjiQIBZiJg')
+API_TOKEN = os.getenv('BOT_TOKEN')
 CHANNEL_ID = '@ua_trends_save'
 CHANNEL_URL = 'https://t.me/ua_trends_save'
 
@@ -205,4 +205,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
