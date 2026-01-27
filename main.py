@@ -64,14 +64,38 @@ async def handle_tiktok(message: types.Message):
         await message.answer("⚠️ Для завантаження відео підпишись на наш канал!", reply_markup=markup)
         return
 
-    status_msg = await message.answer("⏳ Обробка відео...")    # Тут має бути твоя логіка відправки відео (встав її за потреби)
-    await status_msg.delete()
+        status_msg = await message.answer("⌛ Обробка відео... Зачекайте декілька секунд.")
+    tiktok_url = message.text
+
+      try:
+        async with aiohttp.ClientSession() as session:
+            # Використовуємо API для отримання прямого посилання на відео
+            api_url = f"https://api.tiklydown.eu.org/api/download?url={tiktok_url}"
+            async with session.get(api_url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    video_url = data.get('video', {}).get('noWatermark')
+                    
+                    if video_url:
+                        # Надсилаємо саме відео
+                        await message.answer_video(video_url, caption="✅ Відео готове! @ua_trends_save")
+                    else:
+                        await message.answer("❌ Не вдалося знайти відео без водяного знаку.")
+                else:
+                    await message.answer("❌ Сервіс завантаження тимчасово недоступний.")
+      except Exception as e:
+          await message.answer(f"❌ Помилка: {str(e)}")
+      finally:
+        # Тепер видаляємо повідомлення про обробку ТІЛЬКИ після завершення
+        await status_msg.delete()
+
 
 async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
