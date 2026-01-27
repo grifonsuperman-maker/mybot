@@ -1,8 +1,21 @@
 import asyncio
 import aiohttp
+import os
+import http.server
+import socketserver
+import threading
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+# --- БЛОК ДЛЯ СТАБІЛЬНОЇ РОБОТИ НА RENDER ---
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 8000))
+    handler = http.server.SimpleHTTPRequestHandler
+    with socketserver.TCPServer(("", port), handler) as httpd:
+        httpd.serve_forever()
+
+threading.Thread(target=run_dummy_server, daemon=True).start()
+# --------------------------------------------
 
 # ========================================================
 # НАЛАШТУВАННЯ (ПЕРЕВІРЕНО)
@@ -59,5 +72,6 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
