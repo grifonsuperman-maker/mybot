@@ -6,8 +6,9 @@ import socketserver
 import threading
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 # --- БЛОК ДЛЯ СТАБІЛЬНОЇ РОБОТИ НА RENDER ---
+# Це потрібно, щоб сервер Render бачив активність на порту 8000
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8000))
     handler = http.server.SimpleHTTPRequestHandler
@@ -15,20 +16,16 @@ def run_dummy_server():
         httpd.serve_forever()
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
-# --------------------------------------------
 
-# ========================================================
-# НАЛАШТУВАННЯ (ПЕРЕВІРЕНО)
-# ========================================================
-API_TOKEN = '8445491297:AAFmePW4OSKHLW0SIw86pgWdYjiQlBziOJg'
-CHANNEL_ID = '@ua_trends_save'  # Виправлено (без пробілів)
+# --- НАЛАШТУВАННЯ ---
+API_TOKEN = '8445491297:AAFmePw4OSKHLWDSIm86pgWdYjjiQIBZiJg'
+CHANNEL_ID = '@ua_trends_save'
 CHANNEL_URL = 'https://t.me/ua_trends_save'
-BOT_URL = 'https://t.me/tviy_bot_username' # ЗАМІНИ на юзернейм свого бота
-# ========================================================
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
+# Перевірка підписки
 async def check_sub(user_id):
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
@@ -38,9 +35,9 @@ async def check_sub(user_id):
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="1. Підписатися на канал 📢", url=CHANNEL_URL)],
-        [InlineKeyboardButton(text="2. Я підписався ✅", callback_data="verify")]
+    markup = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="1. Підписатися на канал 📢", url=CHANNEL_URL)],
+        [types.InlineKeyboardButton(text="2. Я підписався ✅", callback_data="verify")]
     ])
     await message.answer(
         f"Привіт! 👋 Надішли мені посилання на TikTok, і я завантажу відео без водяного знаку.\n\n"
@@ -58,18 +55,18 @@ async def verify(call: types.CallbackQuery):
 @dp.message(F.text.contains("tiktok.com"))
 async def handle_tiktok(message: types.Message):
     if not await check_sub(message.from_user.id):
-        markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Підписатися на канал 📢", url=CHANNEL_URL)]
+        markup = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text="Підписатися на канал 📢", url=CHANNEL_URL)]
         ])
         await message.answer("⚠️ Для завантаження відео підпишись на наш канал!", reply_markup=markup)
         return
 
-        status_msg = await message.answer("⌛ Обробка відео... Зачекайте декілька секунд.")
+    status_msg = await message.answer("⌛ Обробка відео... Зачекайте декілька секунд.")
     tiktok_url = message.text
+
     try:
-        async with
-aiohttp.ClientSession() as session:
-            # Використовуємо API для отримання прямого посилання на відео
+        async with aiohttp.ClientSession() as session:
+            # Використовуємо API для отримання прямого посилання
             api_url = f"https://api.tiklydown.eu.org/api/download?url={tiktok_url}"
             async with session.get(api_url) as response:
                 if response.status == 200:
@@ -77,18 +74,16 @@ aiohttp.ClientSession() as session:
                     video_url = data.get('video', {}).get('noWatermark')
                     
                     if video_url:
-                        # Надсилаємо саме відео
                         await message.answer_video(video_url, caption="✅ Відео готове! @ua_trends_save")
                     else:
                         await message.answer("❌ Не вдалося знайти відео без водяного знаку.")
                 else:
                     await message.answer("❌ Сервіс завантаження тимчасово недоступний.")
-      except Exception as e:
-          await message.answer(f"❌ Помилка: {str(e)}")
-      finally:
-        # Тепер видаляємо повідомлення про обробку ТІЛЬКИ після завершення
+    except Exception as e:
+        await message.answer(f"❌ Помилка: {str(e)}")
+    finally:
+        # Видаляємо статус після того, як відео надіслано або сталася помилка
         await status_msg.delete()
-
 
 async def main():
     await dp.start_polling(bot)
