@@ -66,9 +66,9 @@ async def handle_tiktok(message: types.Message):
 
         status_msg = await message.answer("⌛ Обробка відео... Зачекайте декілька секунд.")
     tiktok_url = message.text
-
-      try:
-        async with aiohttp.ClientSession() as session:
+    try:
+        async with
+aiohttp.ClientSession() as session:
             # Використовуємо API для отримання прямого посилання на відео
             api_url = f"https://api.tiklydown.eu.org/api/download?url={tiktok_url}"
             async with session.get(api_url) as response:
@@ -95,6 +95,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
