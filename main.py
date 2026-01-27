@@ -51,4 +51,13 @@ async def handle_tiktok(message: types.Message):
         await message.answer("⚠️ Для завантаження відео підпишись на наш канал!", reply_markup=markup)
         return
 
-    status_msg = await message.answer("⏳ Обробка відео..
+    status_msg = await message.answer("⏳ Обробка відео...")    # Тут має бути твоя логіка відправки відео (встав її за потреби)
+    await status_msg.delete()
+
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+
