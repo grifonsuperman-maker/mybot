@@ -7,9 +7,9 @@ from aiohttp import web
 
 # --- НАЛАШТУВАННЯ (З твоїх скриншотів) ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_ID = "@ua_trends_save"  
-ADMIN_USERNAME = "@AlexUlqiora" 
-MONO_URL = "https://send.monobank.ua/jar/qU4cLtSyT"
+CHANNEL_ID = "@ua_trends_save"  # Твій канал
+ADMIN_USERNAME = "@AlexUlqiora" # Твій нік
+MONO_URL = "https://send.monobank.ua/jar/qU4cLtSyT" # Твій донат
 BOT_NICKNAME = "@ua_trends_save_bot"
 # ---------------------------------------
 
@@ -18,9 +18,19 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 user_links = {}
 
-# Веб-сервер для стабільності на Render
+# Веб-сервер для Render (запобігає помилкам порту)
 async def handle(request): 
-    return web.Response(text="Бот працює стабільно. Конфлікти усунено.")
+    return web.Response(text="Бот працює. Підписка активована.")
+
+# Функція перевірки підписки
+async def check_subscription(user_id: int):
+    try:
+        member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
+        if member.status in ["member", "administrator", "creator"]:
+            return True
+        return False
+    except Exception:
+        return False
 
 # 📢 АВТО-ПРОМО (Реклама каналу кожні 6 годин)
 async def auto_promo():
@@ -41,14 +51,13 @@ async def start_handler(message: types.Message):
     kb.adjust(2)
     
     welcome = (
-        "👋 **Привіт! Я твій помічник із завантаження.**\n\n"
-        "Я качу контент у найкращій якості з:\n"
-        "✅ **TikTok** (без знака)\n"
-        "✅ **Instagram** (Reels/Post)\n"
-        "✅ **Facebook**\n"
-        "✅ **Twitter (X)**\n"
-        "✅ **Pinterest**\n\n"
-        "📥 Просто надішли мені посилання!"
+        "👋 **Привіт! Я твій універсальний загрузчик.**\n\n"
+        "Я качаю контент без водяних знаків з:\n"
+        "✅ **TikTok**\n"
+        "✅ **Instagram**\n"
+        "✅ **Facebook / Pinterest / Twitter**\n\n"
+        "⚠️ *YouTube не підтримується.*\n"
+        "📥 Надішли мені посилання!"
     )
     await message.answer(welcome, reply_markup=kb.as_markup(), parse_mode="Markdown")
 
@@ -66,23 +75,39 @@ async def donate_handler(callback: types.CallbackQuery):
 async def handle_link(message: types.Message):
     url = message.text.strip()
     
+    # 1. ПЕРЕВІРКА ПІДПИСКИ
+    if not await check_subscription(message.from_user.id):
+        kb = InlineKeyboardBuilder()
+        kb.button(text="✅ Підписатися на канал", url=f"https://t.me/{CHANNEL_ID.replace('@', '')}")
+        await message.answer(
+            f"❌ **Доступ обмежено!**\n\nДля використання бота підпишіться на наш канал: {CHANNEL_ID}",
+            reply_markup=kb.as_markup()
+        )
+        return
+
+    # 2. ФІЛЬТР YOUTUBE
     if "youtu" in url or "youtube" in url:
-        await message.answer("⚠️ YouTube тимчасово не підтримується. Використовуйте TikTok або Instagram.")
+        await message.answer("⚠️ YouTube тимчасово не підтримується. Спробуйте TikTok або Instagram.")
         return
 
     user_links[message.from_user.id] = url
     kb = InlineKeyboardBuilder()
     kb.button(text="🎬 Відео", callback_data="dl_video")
     kb.button(text="🎵 Музика", callback_data="dl_audio")
-    await message.answer("🔍 Що саме скачати?", reply_markup=kb.as_markup())
+    await message.answer("🔍 Посилання прийнято! Що скачати?", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data.startswith("dl_"))
 async def process_download(callback: types.CallbackQuery):
+    # Повторна перевірка підписки при натисканні кнопок
+    if not await check_subscription(callback.from_user.id):
+        await callback.answer("❌ Спочатку підпишіться!", show_alert=True)
+        return
+
     url = user_links.get(callback.from_user.id)
     choice = callback.data.split("_")[1]
     if not url: return
 
-    status_msg = await callback.message.answer("⏳ Готую файл... Зачекайте.")
+    status_msg = await callback.message.answer("⏳ Обробка... Зачекайте.")
     rand_str = ''.join(random.choices(string.ascii_letters + string.digits, k=5))
     ext = 'mp4' if choice == 'video' else 'm4a'
     file_path = f"file_{callback.from_user.id}_{rand_str}.{ext}"
@@ -106,10 +131,10 @@ async def process_download(callback: types.CallbackQuery):
                 await callback.message.answer_video(file)
             else:
                 await callback.message.answer_audio(file)
-        else: raise Exception("Файл не знайдено")
+        else: raise Exception("File missing")
     except Exception as e:
         logging.error(f"Download Error: {e}")
-        await callback.message.answer("❌ Помилка. Можливо, відео приватне або занадто довге.")
+        await callback.message.answer("❌ Помилка завантаження. Спробуйте інше посилання.")
     finally:
         if os.path.exists(file_path): os.remove(file_path)
         await status_msg.delete()
@@ -117,14 +142,14 @@ async def process_download(callback: types.CallbackQuery):
 async def main():
     asyncio.create_task(auto_promo())
     
-    # Запуск веб-сервера (порт 10000 для Render)
+    # Запуск сервера на порту 10000
     app = web.Application()
     app.router.add_get("/", handle)
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 10000))).start()
     
-    # ⚡ ВИРІШЕННЯ ПОМИЛКИ CONFLICT: Очищуємо старі повідомлення
+    # ⚡ ВИРІШЕННЯ CONFLICT: Видаляємо старі запити
     await bot.delete_webhook(drop_pending_updates=True)
     
     await dp.start_polling(bot)
