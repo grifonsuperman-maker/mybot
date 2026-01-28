@@ -39,7 +39,7 @@ async def handle_link(message: types.Message):
     await message.answer("Что скачать?", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data.startswith("dl_"))
-async def process_download(callback: types.Callback_query):
+async def process_download(callback: types.CallbackQuery):
     url = user_links.get(callback.from_user.id)
     choice = callback.data.split("_")[1]
     if not url: return
@@ -75,3 +75,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
