@@ -19,11 +19,11 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 user_links = {}
 
-# Веб-сервер для Render
+# Веб-сервер для Render (захист від сну та 502 помилки)
 async def handle(request): 
-    return web.Response(text="Бот онлайн та захищений від конфліктів.")
+    return web.Response(text="Бот онлайн та працює.")
 
-# Перевірка підписки
+# Перевірка підписки на канал
 async def check_subscription(user_id: int):
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
@@ -53,11 +53,10 @@ async def ads_handler(callback: types.CallbackQuery):
 async def donate_handler(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     kb.button(text="💰 Monobank", url=MONO_URL)
-    await callback.message.answer("🙏 Дякую за підтримку!", reply_markup=kb.as_markup())
+    await callback.message.answer("🙏 Дякую за підтримку! Це допоможе боту працювати швидше.", reply_markup=kb.as_markup())
 
 @dp.message(F.text.contains("http"))
 async def handle_link(message: types.Message):
-    # ПЕРЕВІРКА ПІДПИСКИ ПЕРЕД ОБРОБКОЮ
     if not await check_subscription(message.from_user.id):
         kb = InlineKeyboardBuilder()
         kb.button(text="✅ Підписатися на канал", url=f"https://t.me/{CHANNEL_ID.replace('@', '')}")
@@ -93,6 +92,9 @@ async def process_download(callback: types.CallbackQuery):
     ext = 'mp4' if choice == 'video' else 'm4a'
     file_path = f"file_{callback.from_user.id}_{rand_str}.{ext}"
     
+    # Текст самореклами під відео
+    promo_caption = f"🎬 Без водяних знаків через {BOT_NICKNAME}\n\n🔥 Більше трендів тут: {CHANNEL_ID}"
+
     ydl_opts = {
         'outtmpl': file_path,
         'quiet': True,
@@ -107,10 +109,27 @@ async def process_download(callback: types.CallbackQuery):
         
         if os.path.exists(file_path):
             file = types.FSInputFile(file_path)
-            await (callback.message.answer_video(file) if choice == 'video' else callback.message.answer_audio(file))
-        else: raise Exception("File missing")
-    except:
-        await callback.message.answer("❌ Помилка. Відео приватне або занадто довге.")
+            
+            # Відправка відео або аудіо користувачу
+            if choice == 'video':
+                sent_msg = await callback.message.answer_video(file, caption=promo_caption)
+                
+                # АВТОПОСТИНГ У КАНАЛ
+                try:
+                    await bot.send_video(
+                        chat_id=CHANNEL_ID, 
+                        video=sent_msg.video.file_id, 
+                        caption=f"🔥 Новий тренд!\n\nСкачати без знаків: {BOT_NICKNAME}"
+                    )
+                except Exception as post_e:
+                    logging.error(f"Помилка автопостингу: {post_e}")
+            else:
+                await callback.message.answer_audio(file, caption=promo_caption)
+        else: 
+            raise Exception("File missing")
+    except Exception as e:
+        logging.error(f"Помилка: {e}")
+        await callback.message.answer("❌ Помилка завантаження. Спробуйте інше посилання.")
     finally:
         if os.path.exists(file_path): os.remove(file_path)
         await status_msg.delete()
@@ -123,13 +142,12 @@ async def main():
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 10000))).start()
     
-    # ПРИМУСОВЕ ВИДАЛЕННЯ ВЕБХУКІВ ДЛЯ УСУНЕННЯ CONFLICT
     await bot.delete_webhook(drop_pending_updates=True)
     
     try:
         await dp.start_polling(bot)
     except TelegramConflictError:
-        logging.error("Конфлікт: інша копія бота ще працює. Перезавантажте Render.")
+        logging.error("Конфлікт: бот вже запущений.")
 
 if __name__ == "__main__":
     asyncio.run(main())
